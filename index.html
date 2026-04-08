@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Quoridor - Deluxe Edition</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --secondary: #ef4444;
+            --bg-glass: rgba(15, 15, 20, 0.65);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-main: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        
+        body { 
+            margin: 0; overflow: hidden; background-color: #08080a; 
+            font-family: var(--text-main); color: white; 
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; 
+        }
+        canvas { display: block; }
+
+        /* Typography & Globals */
+        h1, h2, h3, p { margin: 0; }
+        
+        /* Glassmorphism Standard */
+        .glass {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* Main Menu */
+        #main-menu {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: radial-gradient(circle at center, transparent 0%, #08080a 100%);
+            z-index: 100; transition: opacity 0.6s ease;
+        }
+        
+        .menu-panel {
+            padding: 40px; border-radius: 24px; text-align: center;
+            max-width: 500px; width: 90%;
+        }
+
+        .menu-panel h1 { font-size: 3.5rem; font-weight: 200; letter-spacing: 8px; margin-bottom: 10px; text-shadow: 0 0 30px rgba(255,255,255,0.3); }
+        .menu-panel p.subtitle { color: #888; font-weight: 300; letter-spacing: 2px; margin-bottom: 30px; text-transform: uppercase; font-size: 0.9rem; }
+        
+        .how-to {
+            background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; margin-bottom: 30px;
+            text-align: left; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .how-to h3 { font-size: 1rem; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .how-to ul { padding-left: 20px; margin: 0; color: #ddd; font-size: 0.9rem; line-height: 1.6; }
+        .how-to li { margin-bottom: 8px; }
+
+        .menu-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white; padding: 15px 40px; font-size: 1.1rem; border-radius: 12px;
+            cursor: pointer; margin: 8px 0; transition: all 0.3s ease; width: 100%;
+            font-family: var(--text-main); font-weight: 500; letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .menu-btn:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
+
+        /* In-Game HUD - Minimal */
+        #hud-minimal {
+            position: absolute; top: 30px; left: 30px;
+            display: none; z-index: 10; pointer-events: none;
+            flex-direction: column; gap: 10px;
+            font-size: 1.2rem; font-weight: 700; letter-spacing: 1.5px;
+            text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+        }
+        
+        .p1-color { color: var(--primary); transition: all 0.3s ease; }
+        .p2-color { color: var(--secondary); transition: all 0.3s ease; }
+        
+        /* Persistent Bottom Controls */
+        #controls-bar {
+            position: absolute; bottom: 30px; width: 100%;
+            display: none; justify-content: center; align-items: center; gap: 20px;
+            padding: 0 20px; box-sizing: border-box; z-index: 50;
+            pointer-events: none;
+        }
+
+        .control-group { pointer-events: auto; }
+
+        /* D-Pad Standard */
+        .d-pad {
+            display: grid; 
+            grid-template-columns: 65px 65px 65px; 
+            grid-template-rows: 65px 65px 65px; 
+            gap: 6px; 
+            border-radius: 20px; padding: 12px;
+        }
+        .d-pad button {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; border-radius: 12px; font-size: 1.4rem; cursor: pointer;
+            transition: 0.2s; display: flex; justify-content: center; align-items: center;
+        }
+        .d-pad button:active:not(.disabled) { background: rgba(255,255,255,0.2); transform: scale(0.92); }
+        .d-pad button.disabled { opacity: 0.15; cursor: not-allowed; }
+        
+        .d-pad-up { grid-column: 2; grid-row: 1; }
+        .d-pad-left { grid-column: 1; grid-row: 2; }
+        .d-pad-right { grid-column: 3; grid-row: 2; }
+        .d-pad-down { grid-column: 2; grid-row: 3; }
+        .d-pad-center {
+            grid-column: 2; grid-row: 2; 
+            display: flex; justify-content: center; align-items: center; text-align: center;
+            font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.5);
+            pointer-events: none; letter-spacing: 1px; line-height: 1.2;
+        }
+
+        /* Action Buttons */
+        .actions-container {
+            display: flex; gap: 15px; 
+            padding: 15px; border-radius: 20px;
+        }
+        
+        .action-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; border-radius: 16px; width: 85px; height: 85px;
+            font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            text-align: center; line-height: 1.3; letter-spacing: 1px;
+            font-family: var(--text-main);
+        }
+        .action-btn i { font-size: 1.6rem; margin-bottom: 5px; font-style: normal; }
+        .action-btn:active:not(.disabled) { transform: scale(0.92); }
+        .action-btn.disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        #btn-confirm-wall { color: #4ade80; border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.1); }
+        #btn-confirm-wall:hover:not(.disabled) { background: rgba(74,222,128,0.2); }
+
+        #toast { 
+            position: absolute; bottom: 260px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; color: #ffca28; font-weight: 600; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none; z-index: 50; text-align: center; letter-spacing: 1px;
+            border-radius: 30px; border: 1px solid rgba(255, 202, 40, 0.3);
+        }
+
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+            background: rgba(0,0,0,0.85); z-index: 200; backdrop-filter: blur(10px); pointer-events: auto;
+        }
+        #game-over h2 { font-size: 4rem; margin-bottom: 30px; font-weight: 200; letter-spacing: 4px; }
+
+        @media (max-width: 900px) {
+            #controls-bar { bottom: 15px; gap: 10px; padding: 0 10px; }
+            .d-pad { grid-template-columns: 55px 55px 55px; grid-template-rows: 55px 55px 55px; gap: 4px; padding: 8px;}
+            .action-btn { width: 75px; height: 75px; font-size: 0.7rem; }
+            .action-btn i { font-size: 1.3rem; }
+            #hud-minimal { top: 20px; left: 20px; font-size: 1rem; }
+            .d-pad-center { font-size: 0.6rem; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <!-- Main Menu -->
+    <div id="main-menu">
+        <div class="menu-panel glass">
+            <h1>QUORIDOR</h1>
+            <p class="subtitle">A Game of Labyrinths</p>
+            
+            <div class="how-to">
+                <h3>How to Play</h3>
+                <ul>
+                    <li>Reach the opposite side of the board to win.</li>
+                    <li>On your turn, either <b>Move your Pawn</b> or <b>Place a Wall</b>.</li>
+                    <li>Walls cannot completely block a player's path.</li>
+                    <li><i>Hotkeys: Use Spacebar to flip walls on Desktop.</i></li>
+                </ul>
+            </div>
+
+            <button class="menu-btn" onclick="startGame(true)">1 Player (vs Bot)</button>
+            <button class="menu-btn" onclick="startGame(false)">2 Players (Local)</button>
+        </div>
+    </div>
+
+    <!-- Game HUD -->
+    <div id="hud-minimal">
+        <div id="p1-text" class="p1-color">10 Blue Walls</div>
+        <div id="p2-text" class="p2-color">10 Red Walls</div>
+    </div>
+
+    <!-- Unified Controls Bar -->
+    <div id="controls-bar">
+        <!-- Move Pawn D-Pad -->
+        <div class="control-group d-pad glass">
+            <button class="d-pad-up" id="btn-move-up" onclick="handleDpad('up')">▲</button>
+            <button class="d-pad-left" id="btn-move-left" onclick="handleDpad('left')">◀</button>
+            <div class="d-pad-center">MOVE<br>PAWN</div>
+            <button class="d-pad-right" id="btn-move-right" onclick="handleDpad('right')">▶</button>
+            <button class="d-pad-down" id="btn-move-down" onclick="handleDpad('down')">▼</button>
+        </div>
+
+        <!-- Wall Actions -->
+        <div class="control-group actions-container glass">
+            <button class="action-btn" onclick="rotatePreview()" title="Flip Wall (Spacebar)">
+                <i>↻</i>FLIP<br>WALL
+            </button>
+            <button class="action-btn" id="btn-confirm-wall" onclick="confirmPreview()" title="Place Wall">
+                <i>✔</i>PLACE<br>WALL
+            </button>
+        </div>
+
+        <!-- Move Wall Cursor D-Pad -->
+        <div class="control-group d-pad glass">
+            <button class="d-pad-up" onclick="handleWallDpad('up')">▲</button>
+            <button class="d-pad-left" onclick="handleWallDpad('left')">◀</button>
+            <div class="d-pad-center">MOVE<br>WALL</div>
+            <button class="d-pad-right" onclick="handleWallDpad('right')">▶</button>
+            <button class="d-pad-down" onclick="handleWallDpad('down')">▼</button>
+        </div>
+    </div>
+
+    <!-- Messages & Game Over -->
+    <div id="toast" class="glass">Message</div>
+    <div id="game-over">
+        <h2 id="winner-text">Player Wins!</h2>
+        <button class="menu-btn" style="max-width: 300px;" onclick="location.reload()">Back to Menu</button>
+    </div>
+
+    <script>
+        // --- 1. Audio System ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            
+            if (type === 'move') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(500, now + 0.15);
+                osc.frequency.exponentialRampToValueAtTime(150, now + 0.3);
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'wall') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'error') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, now);
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.1, now + 0.05);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'win') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); 
+                osc.frequency.setValueAtTime(659.25, now + 0.2); 
+                osc.frequency.setValueAtTime(783.99, now + 0.4); 
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 2);
+                osc.start(now); osc.stop(now + 2);
+            }
+        }
+
+        // --- 2. Game State ---
+        let gameActive = false;
+        let isVsBot = false;
+        let turn = 0; 
+        let wallOrientation = 'H'; 
+        
+        // Wall Cursor Inertia state
+        let previewState = { wx: 3, wz: 3, valid: false };
+        let targetGhostX = 0, targetGhostZ = 0;
+        
+        const players = [
+            { x: 4, z: 0, visualX: 4, visualZ: 0, startX: 4, startZ: 0, animProgress: 1, walls: 10, targetZ: 8, color: 0x3b82f6, name: "Player 1", isBot: false },
+            { x: 4, z: 8, visualX: 4, visualZ: 8, startX: 4, startZ: 8, animProgress: 1, walls: 10, targetZ: 0, color: 0xef4444, name: "Player 2", isBot: false }
+        ];
+
+        let wallsH, wallsV;
+        const tileSize = 10;
+        const offset = 4;
+        
+        function resetGameState() {
+            wallsH = Array.from({length: 8}, () => Array(8).fill(false));
+            wallsV = Array.from({length: 8}, () => Array(8).fill(false));
+            
+            players[0].x = players[0].visualX = players[0].startX = 4;
+            players[0].z = players[0].visualZ = players[0].startZ = 0;
+            players[0].walls = 10; players[0].animProgress = 1;
+            
+            players[1].x = players[1].visualX = players[1].startX = 4;
+            players[1].z = players[1].visualZ = players[1].startZ = 8;
+            players[1].walls = 10; players[1].animProgress = 1;
+
+            turn = 0;
+            gameActive = true;
+            wallOrientation = 'H';
+            previewState.wx = 3; previewState.wz = 3;
+            targetGhostX = (3 - 3.5) * tileSize;
+            targetGhostZ = (3 - 3.5) * tileSize;
+
+            updateUI();
+            
+            targetCamTheta = Math.PI; 
+            camTheta = targetCamTheta;
+            
+            ghostWall.visible = true; 
+            updatePreviewLogic();
+            updateDpadValidation();
+        }
+
+        // --- 3. Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x08080a, 150, 450); 
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); 
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); 
+        dirLight.position.set(10, 50, 20);
+        scene.add(dirLight);
+
+        const glowLight = new THREE.PointLight(players[0].color, 2, 100);
+        glowLight.position.set(0, -10, 0);
+        scene.add(glowLight);
+
+        // Main Game Board Group
+        const boardGroup = new THREE.Group();
+        boardGroup.visible = false;
+        scene.add(boardGroup);
+
+        // Main Menu Cinematic Background Group
+        const menuGroup = new THREE.Group();
+        scene.add(menuGroup);
+
+        const baseGeo = new THREE.BoxGeometry(92, 2, 92);
+        const baseMat = new THREE.MeshPhongMaterial({ color: 0x1a1a24, shininess: 100 });
+        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        baseMesh.position.y = -1;
+        boardGroup.add(baseMesh);
+
+        const tileGeo = new THREE.BoxGeometry(9, 1.2, 9);
+        const tileMat = new THREE.MeshPhongMaterial({ color: 0x2a2a35 });
+        for(let x=0; x<9; x++){
+            for(let z=0; z<9; z++){
+                let tile = new THREE.Mesh(tileGeo, tileMat);
+                tile.position.set((x - offset) * tileSize, -0.4, (z - offset) * tileSize);
+                boardGroup.add(tile);
+            }
+        }
+
+        const hitPlane = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), new THREE.MeshBasicMaterial({ visible: false }));
+        hitPlane.rotation.x = -Math.PI / 2;
+        scene.add(hitPlane);
+
+        const pawnGeo = new THREE.CylinderGeometry(2.5, 3.5, 8, 32);
+        pawnGeo.translate(0, 4, 0);
+        const p1Mat = new THREE.MeshPhongMaterial({ color: players[0].color, shininess: 80 });
+        const p2Mat = new THREE.MeshPhongMaterial({ color: players[1].color, shininess: 80 });
+        
+        players[0].mesh = new THREE.Mesh(pawnGeo, p1Mat);
+        players[1].mesh = new THREE.Mesh(pawnGeo, p2Mat);
+        boardGroup.add(players[0].mesh);
+        boardGroup.add(players[1].mesh);
+
+        // Walls (Frosted, Non-specular)
+        const wallGeoH = new THREE.BoxGeometry(20, 7, 2);
+        const wallGeoV = new THREE.BoxGeometry(2, 7, 20);
+        const wallMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0xffffff, transmission: 0.65, opacity: 1, metalness: 0.0, roughness: 0.9, 
+            transparent: true, depthWrite: false 
+        });
+        const placedWalls = [];
+        const animatingWalls = [];
+
+        function placeWallVisual(wx, wz, isH) {
+            const mesh = new THREE.Mesh(isH ? wallGeoH : wallGeoV, wallMat);
+            mesh.position.set((wx - 3.5) * tileSize, -5, (wz - 3.5) * tileSize);
+            mesh.userData.targetY = 3.5;
+            boardGroup.add(mesh);
+            placedWalls.push(mesh);
+            animatingWalls.push(mesh);
+            if (isH) wallsH[wx][wz] = true; else wallsV[wx][wz] = true;
+        }
+
+        // Persistent Dotted Line Cursor
+        const ghostMat = new THREE.LineDashedMaterial({ color: 0x4ade80, dashSize: 1, gapSize: 0.5, linewidth: 2 });
+        const ghostWall = new THREE.LineSegments(new THREE.EdgesGeometry(wallGeoH), ghostMat);
+        ghostWall.computeLineDistances();
+        ghostWall.visible = false;
+        boardGroup.add(ghostWall);
+
+        // Menu Background Assets
+        const menuPawn = new THREE.Mesh(pawnGeo, p1Mat);
+        menuPawn.scale.set(3, 3, 3);
+        menuGroup.add(menuPawn);
+        const menuWall = new THREE.Mesh(wallGeoH, wallMat);
+        menuWall.scale.set(3, 3, 3);
+        menuGroup.add(menuWall);
+
+        // --- 4. Camera, Input Controller & Mechanics ---
+        let camRadius = 140;
+        let camTheta = Math.PI; 
+        let camPhi = Math.PI / 3; 
+        let targetCamTheta = Math.PI;
+        
+        let isDraggingCamera = false;
+        let prevMouseX = 0;
+        let touchStartPos = { x: 0, y: 0 };
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        // Spacebar Hotkey for Flip
+        window.addEventListener('keydown', (e) => {
+            if (gameActive && e.code === 'Space') {
+                e.preventDefault();
+                rotatePreview();
+            }
+        });
+
+        function moveCursorToRaycast(clientX, clientY) {
+            if (!gameActive || players[turn].isBot) return;
+
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(hitPlane);
+            
+            if (intersects.length > 0) {
+                const wx = Math.round(intersects[0].point.x / tileSize + 3.5);
+                const wz = Math.round(intersects[0].point.z / tileSize + 3.5);
+
+                if (wx >= 0 && wx < 8 && wz >= 0 && wz < 8) {
+                    previewState.wx = wx;
+                    previewState.wz = wz;
+                    targetGhostX = (wx - 3.5) * tileSize;
+                    targetGhostZ = (wz - 3.5) * tileSize;
+                    updatePreviewLogic();
+                }
+            }
+        }
+
+        // Desktop Handlers
+        window.addEventListener('mousedown', (e) => {
+            if(!gameActive || e.target.tagName !== 'CANVAS') return;
+            initAudio();
+
+            if (e.button === 2) { 
+                isDraggingCamera = true;
+                prevMouseX = e.clientX;
+            } else if (e.button === 0) {
+                confirmPreview(); // Left click instantly places wall at cursor on Desktop
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if(!gameActive) return;
+
+            if (isDraggingCamera) {
+                const deltaX = e.clientX - prevMouseX;
+                targetCamTheta -= deltaX * 0.01;
+                camTheta = targetCamTheta; 
+                prevMouseX = e.clientX;
+            } else if (e.target.tagName === 'CANVAS') {
+                moveCursorToRaycast(e.clientX, e.clientY);
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 2) isDraggingCamera = false;
+        });
+
+        // Touch Handlers
+        window.addEventListener('touchstart', (e) => {
+            if(!gameActive || e.target.tagName !== 'CANVAS') return;
+            initAudio();
+            isDraggingCamera = false;
+            touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            if(!gameActive || e.target.tagName !== 'CANVAS') return;
+            e.preventDefault(); 
+            
+            const touch = e.touches[0];
+            const dist = Math.hypot(touch.clientX - touchStartPos.x, touch.clientY - touchStartPos.y);
+            
+            if (dist > 10) isDraggingCamera = true;
+
+            if (isDraggingCamera) {
+                const deltaX = touch.clientX - touchStartPos.x;
+                targetCamTheta -= deltaX * 0.01;
+                camTheta = targetCamTheta;
+                touchStartPos = { x: touch.clientX, y: touch.clientY }; 
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', (e) => {
+            if(!gameActive || e.target.tagName !== 'CANVAS') return;
+            e.preventDefault();
+            if (!isDraggingCamera) moveCursorToRaycast(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            isDraggingCamera = false;
+        }, {passive: false});
+
+        function resizeCamera() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camRadius = window.innerWidth < window.innerHeight ? 230 : 130;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        window.addEventListener('resize', resizeCamera);
+        resizeCamera();
+
+
+        // --- 5. Game Logic & Validation ---
+        function updateUI() {
+            document.getElementById('p1-text').innerText = `${players[0].walls} Blue Walls`;
+            const botText = players[1].isBot ? " (Bot)" : "";
+            document.getElementById('p2-text').innerText = `${players[1].walls} Red Walls${botText}`;
+            
+            if (turn === 0) {
+                document.getElementById('p1-text').style.opacity = '1';
+                document.getElementById('p1-text').style.textShadow = '0 0 15px var(--primary)';
+                document.getElementById('p2-text').style.opacity = '0.4';
+                document.getElementById('p2-text').style.textShadow = 'none';
+            } else {
+                document.getElementById('p2-text').style.opacity = '1';
+                document.getElementById('p2-text').style.textShadow = '0 0 15px var(--secondary)';
+                document.getElementById('p1-text').style.opacity = '0.4';
+                document.getElementById('p1-text').style.textShadow = 'none';
+            }
+        }
+
+        function showToast(msg, isError = true) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.color = isError ? '#ef4444' : '#4ade80';
+            toast.style.borderColor = isError ? 'rgba(239,68,68,0.4)' : 'rgba(74,222,128,0.4)';
+            toast.style.opacity = 1;
+            setTimeout(() => { toast.style.opacity = 0; }, 2000);
+            if(isError) playSound('error');
+        }
+
+        // Validation for the Move D-Pad highlights
+        function updateDpadValidation() {
+            if (!gameActive) return;
+            const cp = players[turn];
+            const povTurn = isVsBot ? 0 : turn; 
+            
+            const directions = ['up', 'down', 'left', 'right'];
+            directions.forEach(dir => {
+                let dx = 0, dz = 0;
+                if (povTurn === 0) {
+                    if (dir === 'up') dz = 1; if (dir === 'down') dz = -1;
+                    if (dir === 'left') dx = 1; if (dir === 'right') dx = -1;
+                } else {
+                    if (dir === 'up') dz = -1; if (dir === 'down') dz = 1;
+                    if (dir === 'left') dx = -1; if (dir === 'right') dx = 1;
+                }
+
+                const btn = document.getElementById(`btn-move-${dir}`);
+                if (!cp.isBot && canMove(cp.x, cp.z, cp.x + dx, cp.z + dz)) {
+                    btn.classList.remove('disabled');
+                } else {
+                    btn.classList.add('disabled');
+                }
+            });
+        }
+
+        // Action Bar Handlers
+        window.rotatePreview = function() {
+            initAudio();
+            if (players[turn].isBot) return;
+            wallOrientation = wallOrientation === 'H' ? 'V' : 'H';
+            updatePreviewLogic();
+        }
+
+        window.confirmPreview = function() {
+            initAudio();
+            if (players[turn].isBot || players[turn].animProgress < 1) return;
+            
+            if (!previewState.valid) {
+                // Instead of rejecting, find the absolute closest valid grid location
+                let bestDist = Infinity;
+                let bestWx = -1, bestWz = -1;
+                
+                for (let x = 0; x < 8; x++) {
+                    for (let z = 0; z < 8; z++) {
+                        const isValid = wallOrientation === 'H' ? canPlaceWallH(x, z) : canPlaceWallV(x, z);
+                        if (isValid) {
+                            const dist = Math.hypot(x - previewState.wx, z - previewState.wz);
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestWx = x;
+                                bestWz = z;
+                            }
+                        }
+                    }
+                }
+                
+                if (bestWx !== -1) {
+                    previewState.wx = bestWx;
+                    previewState.wz = bestWz;
+                    previewState.valid = true;
+                    targetGhostX = (bestWx - 3.5) * tileSize;
+                    targetGhostZ = (bestWz - 3.5) * tileSize;
+                    updatePreviewLogic();
+                } else {
+                    showToast("No valid wall locations left!");
+                    return;
+                }
+            }
+            
+            const cp = players[turn];
+            if (cp.walls <= 0) {
+                showToast("No walls left!");
+                return;
+            }
+
+            placeWallVisual(previewState.wx, previewState.wz, wallOrientation === 'H');
+            cp.walls--; 
+            playSound('wall'); 
+            switchTurn();
+        }
+
+        // D-Pad Movement Controller
+        window.handleDpad = function(direction) {
+            initAudio();
+            const cp = players[turn];
+            if (cp.animProgress < 1 || cp.isBot) return;
+
+            let dx = 0, dz = 0;
+            const povTurn = isVsBot ? 0 : turn; 
+            
+            if (povTurn === 0) {
+                if (direction === 'up') dz = 1;
+                if (direction === 'down') dz = -1;
+                if (direction === 'left') dx = 1;
+                if (direction === 'right') dx = -1;
+            } else {
+                if (direction === 'up') dz = -1;
+                if (direction === 'down') dz = 1;
+                if (direction === 'left') dx = -1;
+                if (direction === 'right') dx = 1;
+            }
+
+            const targetX = cp.x + dx;
+            const targetZ = cp.z + dz;
+
+            if (canMove(cp.x, cp.z, targetX, targetZ)) {
+                cp.startX = cp.x; cp.startZ = cp.z;
+                cp.x = targetX; cp.z = targetZ;
+                cp.animProgress = 0; 
+                playSound('move');
+                updateDpadValidation(); // Disable arrows while jumping
+            } else {
+                showToast("Invalid Move");
+            }
+        }
+
+        window.handleWallDpad = function(direction) {
+            initAudio();
+            if (players[turn].isBot || players[turn].animProgress < 1) return;
+            
+            let dx = 0, dz = 0;
+            const povTurn = isVsBot ? 0 : turn; 
+            
+            if (povTurn === 0) {
+                if (direction === 'up') dz = 1;
+                if (direction === 'down') dz = -1;
+                if (direction === 'left') dx = 1;
+                if (direction === 'right') dx = -1;
+            } else {
+                if (direction === 'up') dz = -1;
+                if (direction === 'down') dz = 1;
+                if (direction === 'left') dx = -1;
+                if (direction === 'right') dx = 1;
+            }
+
+            let newWx = previewState.wx + dx;
+            let newWz = previewState.wz + dz;
+            
+            newWx = Math.max(0, Math.min(7, newWx));
+            newWz = Math.max(0, Math.min(7, newWz));
+            
+            previewState.wx = newWx;
+            previewState.wz = newWz;
+            
+            targetGhostX = (newWx - 3.5) * tileSize;
+            targetGhostZ = (newWz - 3.5) * tileSize;
+            
+            updatePreviewLogic();
+        }
+
+        function updatePreviewLogic() {
+            if (players[turn].isBot) {
+                ghostWall.visible = false;
+                return;
+            }
+            
+            ghostWall.visible = true;
+            ghostWall.geometry = wallOrientation === 'H' ? new THREE.EdgesGeometry(wallGeoH) : new THREE.EdgesGeometry(wallGeoV);
+            
+            previewState.valid = wallOrientation === 'H' ? canPlaceWallH(previewState.wx, previewState.wz) : canPlaceWallV(previewState.wx, previewState.wz);
+            ghostMat.color.setHex(previewState.valid ? 0x4ade80 : 0xef4444);
+            
+            const btnConfirm = document.getElementById('btn-confirm-wall');
+            if (btnConfirm) {
+                if (previewState.valid) btnConfirm.classList.remove('disabled');
+                else btnConfirm.classList.add('disabled');
+            }
+        }
+
+        function canMove(px, pz, tx, tz, ignoreOpponent = false) {
+            if (tx < 0 || tx > 8 || tz < 0 || tz > 8) return false;
+            if (!ignoreOpponent && tx === players[1 - turn].x && tz === players[1 - turn].z) return false;
+
+            const dx = tx - px; const dz = tz - pz;
+            if (Math.abs(dx) + Math.abs(dz) !== 1) return false;
+
+            if (dx === 1)  return !(wallsV[px]?.[pz] || wallsV[px]?.[pz-1]); 
+            if (dx === -1) return !(wallsV[px-1]?.[pz] || wallsV[px-1]?.[pz-1]); 
+            if (dz === 1)  return !(wallsH[px]?.[pz] || wallsH[px-1]?.[pz]); 
+            if (dz === -1) return !(wallsH[px]?.[pz-1] || wallsH[px-1]?.[pz-1]); 
+            return true;
+        }
+
+        function hasPath(playerIndex) {
+            const p = players[playerIndex];
+            const targetZ = p.targetZ;
+            const queue = [[p.x, p.z, 0]];
+            const visited = Array.from({length: 9}, () => Array(9).fill(false));
+            visited[p.x][p.z] = true;
+
+            while (queue.length > 0) {
+                const [cx, cz, dist] = queue.shift();
+                if (cz === targetZ) return dist;
+
+                for (let [dx, dz] of [[1,0], [-1,0], [0,1], [0,-1]]) {
+                    const nx = cx + dx, nz = cz + dz;
+                    if (canMove(cx, cz, nx, nz, true) && !visited[nx][nz]) {
+                        visited[nx][nz] = true;
+                        queue.push([nx, nz, dist + 1]);
+                    }
+                }
+            }
+            return Infinity;
+        }
+
+        function validateWallPlacement(wx, wz, isH) {
+            if (isH && (wallsH[wx][wz] || wallsH[wx-1]?.[wz] || wallsH[wx+1]?.[wz] || wallsV[wx][wz])) return false;
+            if (!isH && (wallsV[wx][wz] || wallsV[wx]?.[wz-1] || wallsV[wx]?.[wz+1] || wallsH[wx][wz])) return false;
+
+            if (isH) wallsH[wx][wz] = true; else wallsV[wx][wz] = true;
+            let p1Path, p2Path;
+            try {
+                p1Path = hasPath(0); p2Path = hasPath(1);
+            } finally {
+                if (isH) wallsH[wx][wz] = false; else wallsV[wx][wz] = false;
+            }
+            return p1Path !== Infinity && p2Path !== Infinity;
+        }
+
+        function canPlaceWallH(wx, wz) { return validateWallPlacement(wx, wz, true); }
+        function canPlaceWallV(wx, wz) { return validateWallPlacement(wx, wz, false); }
+
+        function switchTurn() {
+            if (players[turn].z === players[turn].targetZ) {
+                gameActive = false;
+                document.getElementById('hud-minimal').style.display = 'none';
+                document.getElementById('controls-bar').style.display = 'none';
+                document.getElementById('game-over').style.display = 'flex';
+                document.getElementById('winner-text').innerText = `${players[turn].name} Wins!`;
+                document.getElementById('winner-text').style.color = '#' + players[turn].color.toString(16).padStart(6, '0');
+                playSound('win');
+                return;
+            }
+
+            turn = 1 - turn;
+            updateUI();
+            updatePreviewLogic();
+            updateDpadValidation();
+            
+            // Smart shortest-path Camera Swivel (Only rotate for local 2-player)
+            if (isVsBot) {
+                targetCamTheta = Math.PI; 
+            } else {
+                targetCamTheta = turn === 0 ? Math.PI : 0;
+                let diff = targetCamTheta - (camTheta % (Math.PI * 2));
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                targetCamTheta = camTheta + diff;
+            }
+
+            if (players[turn].isBot) {
+                setTimeout(makeBotMove, 800); 
+            }
+        }
+
+        function makeBotMove() {
+            if (!gameActive) return;
+            const me = players[1];
+            
+            if (hasPath(0) < hasPath(1) && me.walls > 0 && Math.random() > 0.3) {
+                let bestWall = null; let maxInc = 0; const cDist = hasPath(0);
+                for(let i=0; i<30; i++) {
+                    const wx = Math.floor(Math.random()*8), wz = Math.floor(Math.random()*8), isH = Math.random()>0.5;
+                    if (isH ? canPlaceWallH(wx, wz) : canPlaceWallV(wx, wz)) {
+                        if(isH) wallsH[wx][wz] = true; else wallsV[wx][wz] = true;
+                        let newD; try { newD = hasPath(0); } finally { if(isH) wallsH[wx][wz]=false; else wallsV[wx][wz]=false; }
+                        if (newD !== Infinity && newD - cDist > maxInc) { maxInc = newD - cDist; bestWall = {wx, wz, isH}; }
+                    }
+                }
+                if (bestWall && maxInc > 0) {
+                    placeWallVisual(bestWall.wx, bestWall.wz, bestWall.isH);
+                    me.walls--; playSound('wall'); switchTurn(); return;
+                }
+            }
+
+            let bestMove = null; let shortest = Infinity;
+            for (let [dx, dz] of [[1,0], [-1,0], [0,1], [0,-1]]) {
+                const nx = me.x + dx, nz = me.z + dz;
+                if (canMove(me.x, me.z, nx, nz)) {
+                    const oX = me.x, oZ = me.z;
+                    me.x = nx; me.z = nz;
+                    let dist; try { dist = hasPath(1); } finally { me.x = oX; me.z = oZ; }
+                    if (dist < shortest) { shortest = dist; bestMove = {x: nx, z: nz}; }
+                }
+            }
+            if (bestMove) {
+                me.startX = me.x; me.startZ = me.z;
+                me.x = bestMove.x; me.z = bestMove.z;
+                me.animProgress = 0; playSound('move');
+            }
+        }
+
+        window.startGame = function(vsBot) {
+            initAudio();
+            document.getElementById('main-menu').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('hud-minimal').style.display = 'flex';
+                document.getElementById('controls-bar').style.display = 'flex';
+                
+                menuGroup.visible = false;
+                boardGroup.visible = true;
+
+                isVsBot = vsBot;
+                players[1].isBot = vsBot;
+                players[1].name = vsBot ? "Bot (Red)" : "Player 2 (Red)";
+                
+                placedWalls.forEach(w => boardGroup.remove(w)); placedWalls.length = 0;
+                animatingWalls.length = 0;
+                resetGameState();
+            }, 500);
+        };
+
+        // --- 6. Render & Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            if (!gameActive && menuGroup.visible) {
+                // Cinematic Menu Animation
+                camera.position.set(Math.sin(time * 0.2) * 120, 80, Math.cos(time * 0.2) * 120);
+                camera.lookAt(0, 0, 0);
+                
+                menuPawn.position.set(-20, Math.sin(time * 2) * 3 + 10, 0);
+                menuPawn.rotation.x = Math.sin(time * 1.5) * 0.2;
+                menuPawn.rotation.z = Math.cos(time * 1.2) * 0.2;
+                
+                menuWall.position.set(20, Math.cos(time * 2) * 3 + 10, 0);
+                menuWall.rotation.x = Math.sin(time * 1.8) * 0.3;
+                menuWall.rotation.y = time * 0.5;
+                
+                glowLight.position.set(0, 0, 0);
+                glowLight.color.setHSL((time * 0.1) % 1, 0.8, 0.5);
+                glowLight.intensity = 3 + Math.sin(time * 4);
+                
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // Camera Easing & Offset
+            if (!isDraggingCamera) camTheta += (targetCamTheta - camTheta) * 0.05;
+            
+            // Push camera focus down to render board higher (prevents D-Pad overlap)
+            let camYOffset = window.innerWidth < window.innerHeight ? -35 : -15;
+
+            camera.position.x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+            camera.position.y = camRadius * Math.cos(camPhi) + camYOffset;
+            camera.position.z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+            camera.lookAt(0, camYOffset, 0);
+
+            // Cursor Inertia
+            if (ghostWall.visible) {
+                ghostWall.position.x += (targetGhostX - ghostWall.position.x) * 0.25;
+                ghostWall.position.z += (targetGhostZ - ghostWall.position.z) * 0.25;
+                ghostWall.position.y = 3.5 + Math.sin(time * 5) * 0.2; 
+            }
+
+            // Pawn Hop Animation
+            players.forEach(p => {
+                if (p.animProgress < 1) {
+                    p.animProgress += dt * 3.5; 
+                    if (p.animProgress >= 1) {
+                        p.animProgress = 1;
+                        if (players[turn] === p) {
+                            switchTurn();
+                        }
+                    }
+                    
+                    const t = p.animProgress;
+                    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                    
+                    p.visualX = p.startX + (p.x - p.startX) * ease;
+                    p.visualZ = p.startZ + (p.z - p.startZ) * ease;
+                    
+                    p.mesh.position.y = Math.sin(t * Math.PI) * 6;
+                    p.mesh.rotation.x = (p.z - p.startZ) * (t * Math.PI * 2);
+                    p.mesh.rotation.z = -(p.x - p.startX) * (t * Math.PI * 2);
+                } else {
+                    p.mesh.position.y = 0;
+                    p.mesh.rotation.set(0,0,0);
+                }
+                
+                p.mesh.position.x = (p.visualX - offset) * tileSize;
+                p.mesh.position.z = (p.visualZ - offset) * tileSize;
+            });
+
+            // Active player highlighting & Ambient Glow
+            if (gameActive) {
+                const targetColor = new THREE.Color(players[turn].color);
+                glowLight.color.lerp(targetColor, 0.05);
+                glowLight.intensity = 2.5 + Math.sin(time * 3) * 0.5; 
+                
+                players.forEach((p, idx) => {
+                    if (idx === turn) {
+                        p.mesh.material.emissive.setHex(p.color);
+                        p.mesh.material.emissiveIntensity = 0.2 + Math.sin(time * 4) * 0.15;
+                    } else {
+                        p.mesh.material.emissiveIntensity = 0;
+                    }
+                });
+            }
+
+            // Wall rising animation
+            for (let i = animatingWalls.length - 1; i >= 0; i--) {
+                const w = animatingWalls[i];
+                w.position.y += (w.userData.targetY - w.position.y) * 0.15;
+                if (w.userData.targetY - w.position.y < 0.05) {
+                    w.position.y = w.userData.targetY;
+                    animatingWalls.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+
+    </script>
+</body>
+</html>
